@@ -661,7 +661,15 @@ server_queuereader(void *d)
 					continue;
 				}
 				if ((rv = SSL_connect(self->strm)) != 1) {
-					logerr("failed to  connect ssl stream: %s\n",
+                                        logerr("failed to connect ssl stream: %s\n",
+							ERR_reason_error_string(
+								SSL_get_error(sstrm->hdl.ssl, rv)));
+					sstrm->strmclose(sstrm);
+					self->fd = -1;
+					continue;
+				}
+				if ((rv = SSL_get_verify_result(sstrm->hdl.ssl)) != X509_V_OK) {
+					logerr("failed to verify ssl certificate: %s\n",
 							ERR_reason_error_string(
 								SSL_get_error(self->strm, rv)));
 					self->strmclose(self->strm);
@@ -841,14 +849,31 @@ server_new(
 		const SSL_METHOD *m = SSLv23_client_method();
 		ret->ctx = SSL_CTX_new(m);
 		
-		if (ret->ctx == NULL) {
+		/*if (ret->ctx == NULL) {
 			char *err = ERR_error_string(ERR_get_error(), NULL);
 			logerr("failed to create SSL context for server "
 					"%s:%d: %s\n", ret->ip, ret->port, err);
 			free((char *)ret->ip);
 			free(ret);
 			return NULL;
+		}*/
+                if (sslCA != NULL) {
+			if (ret->ctx == NULL ||
+				SSL_CTX_load_verify_locations(ret->ctx,
+											   sslCAisdir ? NULL : sslCA,
+											   sslCAisdir ? sslCA : NULL) == 0)
+			{
+				char *err = ERR_error_string(ERR_get_error(), NULL);
+				logerr("failed to load SSL verify locations from %s for "
+						"%s:%d: %s\n", sslCA, ret->ip, ret->port, err);
+				free((char *)ret->ip);
+				free(ret->batch);
+				free(ret->strm);
+				free(ret);
+				return NULL;
+			}
 		}
+                SSL_CTX_set_verify(ret->ctx, SSL_VERIFY_PEER, NULL);
 
 		ret->strmwrite = &sslwrite;
 		ret->strmflush = &sslflush;

@@ -663,12 +663,12 @@ server_queuereader(void *d)
 				if ((rv = SSL_connect(self->strm)) != 1) {
                                         logerr("failed to connect ssl stream: %s\n",
 							ERR_reason_error_string(
-								SSL_get_error(sstrm->hdl.ssl, rv)));
-					sstrm->strmclose(sstrm);
+								SSL_get_error(self->strm, rv)));
+                                        self->strmclose(self->strm);
 					self->fd = -1;
 					continue;
 				}
-				if ((rv = SSL_get_verify_result(sstrm->hdl.ssl)) != X509_V_OK) {
+				if ((rv = SSL_get_verify_result(self->strm)) != X509_V_OK) {
 					logerr("failed to verify ssl certificate: %s\n",
 							ERR_reason_error_string(
 								SSL_get_error(self->strm, rv)));
